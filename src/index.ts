@@ -121,6 +121,17 @@ function addRootFiles(files: Iterable<string>): void {
     }
 }
 
+function modifyCompilerHost(original: ts.CompilerHost): ts.CompilerHost {
+    return {
+        ...original,
+        getSourceFile(fileName: string, languageVersion: ts.ScriptTarget, onError?: (message: string) => void, shouldCreateNewSourceFile?: boolean): ts.SourceFile | undefined {
+            if (isInPackage(fileName)) return undefined;
+            return original.getSourceFile(fileName, languageVersion, onError, shouldCreateNewSourceFile);
+        },
+        getSourceFileByPath: undefined
+    }
+}
+
 // Parse all source files in this project and record their dependencies.
 // Also record all the files from other projects that we depend on.
 function buildDependenciesForProject(project: ProjectInfo): void {
@@ -132,7 +143,7 @@ function buildDependenciesForProject(project: ProjectInfo): void {
         return !isInPackage(p) && !allOutDirs.some(d => p.startsWith(d));
     }
 
-    const host = ts.createCompilerHost(project.compilerOptions);
+    const host = modifyCompilerHost(ts.createCompilerHost(project.compilerOptions));
     const program = ts.createProgram({
         rootNames: Array.from(project.rootFiles),
         options: project.compilerOptions,
