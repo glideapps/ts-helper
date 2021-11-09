@@ -1,5 +1,6 @@
 ```shell
 npm start -- \
+    -c \
     -p ~/Work/glide/functions \
     -r ~/Work/glide/functions/src/cli.ts \
     -r ~/Work/glide/functions/src/index.ts \

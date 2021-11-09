@@ -241,10 +241,12 @@ async function main(): Promise<void> {
         "--project": [String],
         "--root": [String],
         "--output": String,
+        "--detect-cycles": Boolean,
 
         "-p": "--project",
         "-r": "--root",
-        "-o": "--output"
+        "-o": "--output",
+        "-c": "--detect-cycles"
     });
 
     const {["--project"]: projectPaths, ["--root"]: sourcePaths, ["--output"]: outputFileName} = args;
@@ -273,16 +275,18 @@ async function main(): Promise<void> {
             })] as const))));
     }
 
-    const adjacency = new Map(Array.from(importedFiles).map(([n, i]) => [n, i.strong] as const));
-    const graph = makeGraphFromEdges(adjacency);
-    const cycleNodes = getCycleNodesInGraph(graph);
-    if (cycleNodes !== undefined) {
-        const cycles = getCyclesInGraph(graph, cycleNodes);
-        assert(cycles.length > 0);
-        const shortestLength = Math.min(...cycles.map(c => c.length));
-        const shortestCycle = defined(cycles.find(c => c.length === shortestLength));
-        console.error("Cyclic dependency:", JSON.stringify(shortestCycle));
-
+    if (args["--detect-cycles"]) {
+        const adjacency = new Map(Array.from(importedFiles).map(([n, i]) => [n, i.strong] as const));
+        const graph = makeGraphFromEdges(adjacency);
+        const cycleNodes = getCycleNodesInGraph(graph);
+        if (cycleNodes !== undefined) {
+            const cycles = getCyclesInGraph(graph, cycleNodes);
+            assert(cycles.length > 0);
+            const shortestLength = Math.min(...cycles.map(c => c.length));
+            const shortestCycle = defined(cycles.find(c => c.length === shortestLength));
+            console.error("Cyclic dependency:", JSON.stringify(shortestCycle));
+            return process.exit(1);
+        }
     }
 }
 
