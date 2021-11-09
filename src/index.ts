@@ -181,8 +181,11 @@ function buildDependenciesForProject(project: ProjectInfo): void {
                 const callNode = untypedNode as ts.CallExpression;
                 if (callNode.expression.kind === ts.SyntaxKind.ImportKeyword && callNode.arguments.length === 1) {
                     const untypedArg = defined(callNode.arguments[0]);
-                    assert(untypedArg.kind === ts.SyntaxKind.StringLiteral);
-                    addImport((untypedArg as ts.StringLiteral).text, imports.lazy);
+                    if (untypedArg.kind === ts.SyntaxKind.StringLiteral) {
+                        addImport((untypedArg as ts.StringLiteral).text, imports.lazy);
+                    } else {
+                        console.log("Non-literal import", sourceFile.fileName);
+                    }
                 }
             } else if (untypedNode.kind === ts.SyntaxKind.ExportDeclaration) {
                 const node = untypedNode as ts.ExportDeclaration;
