@@ -1,0 +1,24 @@
+{
+    "compilerOptions": {
+        "target": "es6",
+        "module": "commonjs",
+        "lib": ["es6", "es2018.promise"],
+        "allowJs": false,
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "declaration": true,
+        "outDir": "build",
+        "preserveSymlinks": true,
+        "resolveJsonModule": true,
+        "strict": true,
+        "sourceMap": true,
+        "forceConsistentCasingInFileNames": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noFallthroughCasesInSwitch": true,
+        "noImplicitReturns": true,
+        "noUncheckedIndexedAccess": true
+    },
+    "include": ["src"],
+    "exclude": []
+}

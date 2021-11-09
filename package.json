@@ -1,0 +1,21 @@
+{
+    "name": "ts-helper",
+    "version": "0.0.1",
+    "description": "",
+    "main": "build/index.js",
+    "scripts": {
+        "start": "tsc -b && node build/index.js",
+        "build": "tsc -b",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "@glideapps/ts-necessities": "^2.1.1",
+        "arg": "^5.0.1",
+        "typescript": "^4.4.4"
+    },
+    "devDependencies": {
+        "@types/node": "^16.11.6"
+    }
+}
