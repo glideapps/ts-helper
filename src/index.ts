@@ -3,6 +3,7 @@ import fs from "fs";
 import * as ts from "typescript";
 import arg from "arg";
 import {assert, defined, definedMap, mapFilterUndefined, panic} from "@glideapps/ts-necessities";
+import {getCycleNodesInGraph, getCyclesInGraph, makeGraphFromEdges} from "@glideapps/graphs";
 
 // all paths here are fully resolved
 interface ProjectConfig {
@@ -267,6 +268,18 @@ async function main(): Promise<void> {
                 typesOnly: Array.from(i.typesOnly),
                 lazy: Array.from(i.lazy)
             })] as const))));
+    }
+
+    const adjacency = new Map(Array.from(importedFiles).map(([n, i]) => [n, i.strong] as const));
+    const graph = makeGraphFromEdges(adjacency);
+    const cycleNodes = getCycleNodesInGraph(graph);
+    if (cycleNodes !== undefined) {
+        const cycles = getCyclesInGraph(graph, cycleNodes);
+        assert(cycles.length > 0);
+        const shortestLength = Math.min(...cycles.map(c => c.length));
+        const shortestCycle = defined(cycles.find(c => c.length === shortestLength));
+        console.error("Cyclic dependency:", JSON.stringify(shortestCycle));
+
     }
 }
 
