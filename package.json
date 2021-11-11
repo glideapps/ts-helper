@@ -18,7 +18,7 @@
     "author": "Glide",
     "license": "MIT",
     "dependencies": {
-        "@glideapps/graphs": "0.0.2",
+        "@glideapps/graphs": "0.0.3",
         "@glideapps/ts-necessities": "^2.1.1",
         "arg": "^5.0.1",
         "typescript": "^4.4.4"
