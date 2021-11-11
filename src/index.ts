@@ -1,3 +1,5 @@
+#! /usr/bin/env node
+
 import path from "path";
 import fs from "fs";
 import * as ts from "typescript";
@@ -296,7 +298,8 @@ async function main(): Promise<void> {
             assert(cycles.length > 0);
             const shortestLength = Math.min(...cycles.map(c => c.length));
             const shortestCycle = defined(cycles.find(c => c.length === shortestLength));
-            console.error("Cyclic dependency:", JSON.stringify(shortestCycle));
+            console.error(`Found ${cycles.length} dependency cycles`);
+            console.error(JSON.stringify(shortestCycle));
             return process.exit(1);
         }
     }
