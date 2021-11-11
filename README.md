@@ -37,6 +37,10 @@ Note that it only considers "strong" imports for cycle detection, vs `type` impo
 
 Outputs a JSON file with the dependency graph.
 
+### `-v|--verbose`
+
+Print messages when it's reading and processing projects.
+
 ## Example
 
 In our main repository for Glide we have two TypeScript projects - one for the frontend and one for the backend. The

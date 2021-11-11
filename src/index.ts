@@ -2,7 +2,7 @@ import path from "path";
 import fs from "fs";
 import * as ts from "typescript";
 import arg from "arg";
-import {assert, defined, definedMap, mapFilterUndefined, panic} from "@glideapps/ts-necessities";
+import {assert, defined, definedMap, mapFilterUndefined} from "@glideapps/ts-necessities";
 import {getCycleNodesInGraph, getCyclesInGraph, makeGraphFromEdges} from "@glideapps/graphs";
 
 // all paths here are fully resolved
@@ -29,6 +29,8 @@ interface Imports {
     readonly typesOnly: Set<string>;
     readonly lazy: Set<string>;
 }
+
+let verbose = false;
 
 // config path -> info
 const projectInfos = new Map<string, ProjectInfo>();
@@ -70,7 +72,9 @@ function readProjects(configPath: string): ProjectInfo {
         return existing;
     }
 
-    console.log("+++", configPath);
+    if (verbose) {
+        console.log("Reading project", configPath);
+    }
 
     const config = readConfigFile(configPath);
     const outDir = definedMap(config.compilerOptionsJSON.outDir, d => path.resolve(config.projectDir, d));
@@ -79,8 +83,8 @@ function readProjects(configPath: string): ProjectInfo {
 
     const compilerOptions = ts.convertCompilerOptionsFromJson(config.compilerOptionsJSON, config.projectDir, configPath);
     if (compilerOptions.errors.length > 0) {
-        console.error("!!!", configPath, JSON.stringify(compilerOptions.errors));
-        return panic("Config error");
+        console.error("Config error", configPath, JSON.stringify(compilerOptions.errors));
+        return process.exit(1);
     }
 
     const info: ProjectInfo = {
@@ -184,7 +188,7 @@ function buildDependenciesForProject(project: ProjectInfo): void {
                     if (untypedArg.kind === ts.SyntaxKind.StringLiteral) {
                         addImport((untypedArg as ts.StringLiteral).text, imports.lazy);
                     } else {
-                        console.log("Non-literal import", sourceFile.fileName);
+                        console.log("Warning: Non-literal import", sourceFile.fileName);
                     }
                 }
             } else if (untypedNode.kind === ts.SyntaxKind.ExportDeclaration) {
@@ -220,7 +224,9 @@ function processProjects(): void {
 
             if (Array.from(project.referencedFrom).some(p => !projectsDone.has(p))) continue;
 
-            console.log("***", project.configPath);
+            if (verbose) {
+                console.log("Processing project", project.configPath);
+            }
             buildDependenciesForProject(project);
 
             projectsDone.add(project.configPath);
@@ -242,11 +248,13 @@ async function main(): Promise<void> {
         "--root": [String],
         "--output": String,
         "--detect-cycles": Boolean,
+        "--verbose": Boolean,
 
         "-p": "--project",
         "-r": "--root",
         "-o": "--output",
-        "-c": "--detect-cycles"
+        "-c": "--detect-cycles",
+        "-v": "--verbose"
     });
 
     const {["--project"]: projectPaths, ["--root"]: sourcePaths, ["--output"]: outputFileName} = args;
@@ -257,6 +265,10 @@ async function main(): Promise<void> {
     }
 
     assert(projectPaths.length > 0 && sourcePaths.length > 0);
+
+    if (args["--verbose"]) {
+        verbose = true;
+    }
 
     for (const p of projectPaths) {
         readProjects(p);
