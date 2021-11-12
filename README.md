@@ -14,6 +14,12 @@ We've only implemented as much as we needed to make this work on our codebase, s
 support, or on which it crashes on. If you run into such a case, please considering sending us a PR, or at least report
 the issue with a reproduction.
 
+A few of the things that are missing, in particular:
+
+* We don't respect `exclude` in the project configuration.
+* We only look at `import` (and `export`), not `require`.
+* We treat type import calls such as `type X = import("foo").Bar` as regular "strong" imports. 
+
 ## Usage
 
 ### `-p|--project TS-PROJECT`

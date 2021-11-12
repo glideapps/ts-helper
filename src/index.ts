@@ -7,28 +7,36 @@ import arg from "arg";
 import {assert, defined, definedMap, mapFilterUndefined} from "@glideapps/ts-necessities";
 import {getCycleNodesInGraph, getCyclesInGraph, makeGraphFromEdges} from "@glideapps/graphs";
 
-// all paths here are fully resolved
+// All paths in these interfaces are fully resolved.
+
 interface ProjectConfig {
+    // root directory of the project (the directory where the config file lives)
     readonly projectDir: string;
     readonly compilerOptionsJSON: any;
-    readonly unresolvedProjectReferences: readonly string[];
+    // these are whatever the config says, i.e. either the root directories, or
+    // the config file paths.
+    readonly givenProjectReferences: readonly string[];
 }
 
 interface ProjectInfo extends ProjectConfig {
+    // path of the config file
     readonly configPath: string;
     readonly compilerOptions: ts.CompilerOptions;
     readonly outDir: string | undefined
-    // config paths of references required by this project
+    // config paths of project references directly required by this project
     readonly projectReferences: Set<string>;
-    // config paths of projects referencing this project
+    // config paths of projects directly referencing this project
     readonly referencedFrom: Set<string>;
     // all root source files in this project
     readonly rootFiles: Set<string>;
 }
 
 interface Imports {
+    // "regular" imports
     readonly strong: Set<string>;
+    // `import type`
     readonly typesOnly: Set<string>;
+    // `await import`
     readonly lazy: Set<string>;
 }
 
@@ -52,7 +60,7 @@ function readConfigFile(configPath: string): ProjectConfig {
         const rqrpath = resolve(config.extends);
         const baseConfig = readConfigFile(rqrpath);
         compilerOptionsJSON = baseConfig.compilerOptionsJSON;
-        unresolvedProjectReferences.push(...baseConfig.unresolvedProjectReferences)
+        unresolvedProjectReferences.push(...baseConfig.givenProjectReferences)
     }
     compilerOptionsJSON = {
         ...compilerOptionsJSON,
@@ -62,10 +70,12 @@ function readConfigFile(configPath: string): ProjectConfig {
     return {
         projectDir,
         compilerOptionsJSON,
-        unresolvedProjectReferences
+        givenProjectReferences: unresolvedProjectReferences
     }
 }
 
+// Reads the given project and all its direct and indirect references, if
+// they've not already been read.
 function readProjects(configPath: string): ProjectInfo {
     configPath = ts.resolveProjectReferencePath({path: path.resolve(configPath)});
 
@@ -81,7 +91,8 @@ function readProjects(configPath: string): ProjectInfo {
     const config = readConfigFile(configPath);
     const outDir = definedMap(config.compilerOptionsJSON.outDir, d => path.resolve(config.projectDir, d));
 
-    const projectReferences = config.unresolvedProjectReferences.map(readProjects);
+    // recursively read all references
+    const projectReferences = config.givenProjectReferences.map(readProjects);
 
     const compilerOptions = ts.convertCompilerOptionsFromJson(config.compilerOptionsJSON, config.projectDir, configPath);
     if (compilerOptions.errors.length > 0) {
@@ -100,6 +111,7 @@ function readProjects(configPath: string): ProjectInfo {
     }
     projectInfos.set(configPath, info);
 
+    // add the back-edges
     for (const r of projectReferences) {
         r.referencedFrom.add(configPath);
     }
@@ -107,13 +119,16 @@ function readProjects(configPath: string): ProjectInfo {
     return info;
 }
 
+// We ignore files that are in node packages.
 function isInPackage(p: string): boolean {
     const {dir} = path.parse(p);
     return dir.split(path.sep).some(d => d === "node_modules");
 }
 
+// This is the dependency graph.
 const importedFiles = new Map<string, Imports>();
 
+// Find the project that a source file belongs to and add it as a root file for it.
 function addRootFiles(files: Iterable<string>): void {
     for (const file of files) {
         let found = false;
@@ -128,6 +143,9 @@ function addRootFiles(files: Iterable<string>): void {
     }
 }
 
+// The default compiler host will load any source file that TypeScript requests.
+// We're only interested in the project source files, however, and loading files
+// is slow, so we refuse to load files that are in node modules.
 function modifyCompilerHost(original: ts.CompilerHost): ts.CompilerHost {
     return {
         ...original,
@@ -140,12 +158,13 @@ function modifyCompilerHost(original: ts.CompilerHost): ts.CompilerHost {
 }
 
 // Parse all source files in this project and record their dependencies.
-// Also record all the files from other projects that we depend on.
+// Also record all the files from other projects that it depends on.
 function buildDependenciesForProject(project: ProjectInfo): void {
     const allOutDirs = mapFilterUndefined(projectInfos.values(), i => i.outDir);
 
-    // console.log("out dirs", JSON.stringify(allOutDirs));
-
+    // TypeScript will include the output files of project references
+    // as source files for a project, but we don't care about those, so
+    // we ignore them.
     function shouldInclude(p: string) {
         return !isInPackage(p) && !allOutDirs.some(d => p.startsWith(d));
     }
@@ -172,18 +191,25 @@ function buildDependenciesForProject(project: ProjectInfo): void {
         function addImport(module: string, set: Set<string>) {
             const resolved = ts.resolveModuleName(module, sourceFile.fileName, program.getCompilerOptions(), host);
             if (resolved.resolvedModule !== undefined && shouldInclude(resolved.resolvedModule.resolvedFileName)) {
-                // console.log("import", module, resolved.resolvedModule.resolvedFileName, resolved.resolvedModule.packageId?.name);
                 set.add(resolved.resolvedModule.resolvedFileName);
             }
         }
 
+        // We need to walk the whole parse tree to find all imports.
         function walk(untypedNode: ts.Node) {
             if (untypedNode.kind === ts.SyntaxKind.ImportDeclaration) {
+                // These are top-level import declarations.
+                // They can be `import` or `import type`.
                 const node = untypedNode as ts.ImportDeclaration;
                 assert(node.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral);
                 const typeOnly = node.importClause?.isTypeOnly === true;
                 addImport((node.moduleSpecifier as ts.StringLiteral).text, typeOnly ? imports.typesOnly : imports.strong);
             } else if (untypedNode.kind === ts.SyntaxKind.CallExpression) {
+                // This is a "call" to `import`, which produces a promise.
+                //
+                // TODO: This could be an import that's just used in a type declaration,
+                // such as `type X = import("foo").Bar`, which I believe/hope is treated
+                // as a type-only import by TS, but we treat it as a strong import.
                 const callNode = untypedNode as ts.CallExpression;
                 if (callNode.expression.kind === ts.SyntaxKind.ImportKeyword && callNode.arguments.length === 1) {
                     const untypedArg = defined(callNode.arguments[0]);
@@ -194,6 +220,7 @@ function buildDependenciesForProject(project: ProjectInfo): void {
                     }
                 }
             } else if (untypedNode.kind === ts.SyntaxKind.ExportDeclaration) {
+                // Exports are treated as imports, too.
                 const node = untypedNode as ts.ExportDeclaration;
                 if (node.moduleSpecifier !== undefined) {
                     assert(node.moduleSpecifier?.kind === ts.SyntaxKind.StringLiteral);
@@ -207,6 +234,10 @@ function buildDependenciesForProject(project: ProjectInfo): void {
 
         sourceFile.forEachChild(walk);
 
+        // We need to add the dependencies as "root files" to other projects, so that
+        // TypeScript knows about all the source files we need.  Note that this will also
+        // add the files as roots to the current project, but we're already done with
+        // loading it, so there's no harm done.
         addRootFiles(imports.strong);
         addRootFiles(imports.typesOnly);
         addRootFiles(imports.lazy);
@@ -215,6 +246,14 @@ function buildDependenciesForProject(project: ProjectInfo): void {
     }
 }
 
+// Process the projects in topological order, i.e. make sure we process project references
+// before the projects that depend on them.
+//
+// NOTE: There's an oddity here, which might be an issue in some cases.  We allow adding
+// any number of projects, and they might have overlapping sets of source files, i.e. more
+// than one project might include a specific source file.  The way `addRootFiles` works
+// makes sure that each source file gets added to only one project, and since we respect
+// dependencies between projects, we should be good, but I'm not totally sure.
 function processProjects(): void {
     const projectsDone = new Set<string>();
 
