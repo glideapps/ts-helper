@@ -280,6 +280,10 @@ async function main(): Promise<void> {
 
     processProjects();
 
+    if (verbose) {
+        console.log(`Read ${importedFiles.size} files`);
+    }
+
     if (outputFileName !== undefined) {
         fs.writeFileSync(outputFileName,
             JSON.stringify(Object.fromEntries(Array.from(importedFiles.entries()).map(([n, i]) => [n, ({
