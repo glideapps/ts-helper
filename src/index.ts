@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import * as ts from "typescript";
 import arg from "arg";
+import * as glob from "glob";
 import { assert, defined, definedMap, mapFilterUndefined } from "@glideapps/ts-necessities";
 import { getCycleNodesInGraph, getCyclesInGraph, makeGraphFromEdges } from "@glideapps/graphs";
 
@@ -16,6 +17,8 @@ interface ProjectConfig {
     // these are whatever the config says, i.e. either the root directories, or
     // the config file paths.
     readonly givenProjectReferences: readonly string[];
+    // the "include" option, if given
+    readonly include: readonly string[] | undefined;
 }
 
 interface ProjectInfo extends ProjectConfig {
@@ -68,10 +71,17 @@ function readConfigFile(configPath: string): ProjectConfig {
         ...config.compilerOptions,
     };
 
+    let include: string[] | undefined;
+    const configInclude = config.include;
+    if (Array.isArray(configInclude)) {
+        include = configInclude.filter(x => typeof x === "string");
+    }
+
     return {
         projectDir,
         compilerOptionsJSON,
         givenProjectReferences: unresolvedProjectReferences,
+        include,
     };
 }
 
@@ -322,7 +332,6 @@ async function main(): Promise<void> {
         "--project": [String],
         "--root": [String],
         "--package-regex": [String],
-        // "--all-root": Boolean,
         "--output": String,
         "--detect-cycles": Boolean,
         "--verbose": Boolean,
@@ -341,7 +350,7 @@ async function main(): Promise<void> {
         ["--package-regex"]: packageRegexStrings,
     } = args;
 
-    if (projectPaths === undefined || sourcePaths === undefined) {
+    if (projectPaths === undefined) {
         usage();
         return process.exit(1);
     }
@@ -350,9 +359,7 @@ async function main(): Promise<void> {
         packageRegexes.push(new RegExp(rx));
     }
 
-    // const allRoot = args["--all-root"] === true;
-
-    assert(projectPaths.length > 0 && /* allRoot || */ sourcePaths.length > 0);
+    assert(projectPaths.length > 0);
 
     if (args["--verbose"]) {
         verbose = true;
@@ -362,7 +369,22 @@ async function main(): Promise<void> {
         readProjects(p);
     }
 
-    addRootFiles(sourcePaths.map(p => path.resolve(p)));
+    // If no explicit source files are given, we gather all the files from the
+    // packages' "include" parameters.
+    if (sourcePaths === undefined) {
+        for (const p of projectInfos.values()) {
+            for (const i of p.include ?? []) {
+                const base = path.resolve(p.projectDir, i, "**");
+                const pattern = path.resolve(base, "*.{ts,tsx}");
+                const ignore = [path.resolve(base, "*.test.*"), path.relative(base, "*.d.ts")];
+                const filenames = glob.sync(pattern, { ignore });
+                addRootFiles(filenames);
+            }
+        }
+    } else {
+        assert(sourcePaths.length > 0);
+        addRootFiles(sourcePaths.map(p => path.resolve(p)));
+    }
 
     processProjects();
 
