@@ -4,8 +4,8 @@ import path from "path";
 import fs from "fs";
 import * as ts from "typescript";
 import arg from "arg";
-import {assert, defined, definedMap, mapFilterUndefined} from "@glideapps/ts-necessities";
-import {getCycleNodesInGraph, getCyclesInGraph, makeGraphFromEdges} from "@glideapps/graphs";
+import { assert, defined, definedMap, mapFilterUndefined } from "@glideapps/ts-necessities";
+import { getCycleNodesInGraph, getCyclesInGraph, makeGraphFromEdges } from "@glideapps/graphs";
 
 // All paths in these interfaces are fully resolved.
 
@@ -22,7 +22,7 @@ interface ProjectInfo extends ProjectConfig {
     // path of the config file
     readonly configPath: string;
     readonly compilerOptions: ts.CompilerOptions;
-    readonly outDir: string | undefined
+    readonly outDir: string | undefined;
     // config paths of project references directly required by this project
     readonly projectReferences: Set<string>;
     // config paths of projects directly referencing this project
@@ -55,12 +55,13 @@ function readConfigFile(configPath: string): ProjectConfig {
         return path.resolve(projectDir, p);
     }
 
-    const unresolvedProjectReferences: string[] = config.references?.map((r: { path: string }) => resolve(r.path)) ?? [];
+    const unresolvedProjectReferences: string[] =
+        config.references?.map((r: { path: string }) => resolve(r.path)) ?? [];
     if (config.extends) {
         const rqrpath = resolve(config.extends);
         const baseConfig = readConfigFile(rqrpath);
         compilerOptionsJSON = baseConfig.compilerOptionsJSON;
-        unresolvedProjectReferences.push(...baseConfig.givenProjectReferences)
+        unresolvedProjectReferences.push(...baseConfig.givenProjectReferences);
     }
     compilerOptionsJSON = {
         ...compilerOptionsJSON,
@@ -70,14 +71,16 @@ function readConfigFile(configPath: string): ProjectConfig {
     return {
         projectDir,
         compilerOptionsJSON,
-        givenProjectReferences: unresolvedProjectReferences
-    }
+        givenProjectReferences: unresolvedProjectReferences,
+    };
 }
 
 // Reads the given project and all its direct and indirect references, if
 // they've not already been read.
 function readProjects(configPath: string): ProjectInfo {
-    configPath = ts.resolveProjectReferencePath({path: path.resolve(configPath)});
+    configPath = ts.resolveProjectReferencePath({
+        path: path.resolve(configPath),
+    });
 
     const existing = projectInfos.get(configPath);
     if (existing !== undefined) {
@@ -94,7 +97,11 @@ function readProjects(configPath: string): ProjectInfo {
     // recursively read all references
     const projectReferences = config.givenProjectReferences.map(readProjects);
 
-    const compilerOptions = ts.convertCompilerOptionsFromJson(config.compilerOptionsJSON, config.projectDir, configPath);
+    const compilerOptions = ts.convertCompilerOptionsFromJson(
+        config.compilerOptionsJSON,
+        config.projectDir,
+        configPath
+    );
     if (compilerOptions.errors.length > 0) {
         console.error("Config error", configPath, JSON.stringify(compilerOptions.errors));
         return process.exit(1);
@@ -107,8 +114,8 @@ function readProjects(configPath: string): ProjectInfo {
         outDir,
         projectReferences: new Set(projectReferences.map(r => r.configPath)),
         referencedFrom: new Set(),
-        rootFiles: new Set()
-    }
+        rootFiles: new Set(),
+    };
     projectInfos.set(configPath, info);
 
     // add the back-edges
@@ -116,13 +123,21 @@ function readProjects(configPath: string): ProjectInfo {
         r.referencedFrom.add(configPath);
     }
 
+    if (verbose) {
+        console.log("Added project", info.projectDir);
+    }
+
     return info;
 }
 
+const packageRegexes: RegExp[] = [];
+
 // We ignore files that are in node packages.
 function isInPackage(p: string): boolean {
-    const {dir} = path.parse(p);
-    return dir.split(path.sep).some(d => d === "node_modules");
+    const { dir } = path.parse(p);
+    if (dir.split(path.sep).some(d => d === "node_modules")) return true;
+    if (packageRegexes.some(rx => rx.test(p))) return true;
+    return false;
 }
 
 // This is the dependency graph.
@@ -131,6 +146,9 @@ const importedFiles = new Map<string, Imports>();
 // Find the project that a source file belongs to and add it as a root file for it.
 function addRootFiles(files: Iterable<string>): void {
     for (const file of files) {
+        if (verbose) {
+            console.log("Adding root file", file);
+        }
         let found = false;
         for (const project of projectInfos.values()) {
             if (file.startsWith(project.projectDir)) {
@@ -149,12 +167,17 @@ function addRootFiles(files: Iterable<string>): void {
 function modifyCompilerHost(original: ts.CompilerHost): ts.CompilerHost {
     return {
         ...original,
-        getSourceFile(fileName: string, languageVersion: ts.ScriptTarget, onError?: (message: string) => void, shouldCreateNewSourceFile?: boolean): ts.SourceFile | undefined {
+        getSourceFile(
+            fileName: string,
+            languageVersion: ts.ScriptTarget,
+            onError?: (message: string) => void,
+            shouldCreateNewSourceFile?: boolean
+        ): ts.SourceFile | undefined {
             if (isInPackage(fileName)) return undefined;
             return original.getSourceFile(fileName, languageVersion, onError, shouldCreateNewSourceFile);
         },
-        getSourceFileByPath: undefined
-    }
+        getSourceFileByPath: undefined,
+    };
 }
 
 // Parse all source files in this project and record their dependencies.
@@ -174,18 +197,24 @@ function buildDependenciesForProject(project: ProjectInfo): void {
         rootNames: Array.from(project.rootFiles),
         options: project.compilerOptions,
         host,
-        projectReferences: Array.from(project.projectReferences).map(f => ({path: f}))
+        projectReferences: Array.from(project.projectReferences).map(f => ({
+            path: f,
+        })),
     });
     const sourceFiles = program.getSourceFiles();
 
     for (const sourceFile of sourceFiles) {
+        if (verbose) {
+            console.log("Reading file", sourceFile.fileName);
+        }
+
         assert(!importedFiles.has(sourceFile.fileName));
         if (!shouldInclude(sourceFile.fileName)) continue;
 
         const imports: Imports = {
             strong: new Set<string>(),
             typesOnly: new Set<string>(),
-            lazy: new Set<string>()
+            lazy: new Set<string>(),
         };
 
         function addImport(module: string, set: Set<string>) {
@@ -203,7 +232,10 @@ function buildDependenciesForProject(project: ProjectInfo): void {
                 const node = untypedNode as ts.ImportDeclaration;
                 assert(node.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral);
                 const typeOnly = node.importClause?.isTypeOnly === true;
-                addImport((node.moduleSpecifier as ts.StringLiteral).text, typeOnly ? imports.typesOnly : imports.strong);
+                addImport(
+                    (node.moduleSpecifier as ts.StringLiteral).text,
+                    typeOnly ? imports.typesOnly : imports.strong
+                );
             } else if (untypedNode.kind === ts.SyntaxKind.CallExpression) {
                 // This is a "call" to `import`, which produces a promise.
                 //
@@ -225,7 +257,10 @@ function buildDependenciesForProject(project: ProjectInfo): void {
                 if (node.moduleSpecifier !== undefined) {
                     assert(node.moduleSpecifier?.kind === ts.SyntaxKind.StringLiteral);
                     const typeOnly = node.isTypeOnly;
-                    addImport((node.moduleSpecifier as ts.StringLiteral).text, typeOnly ? imports.typesOnly : imports.strong);
+                    addImport(
+                        (node.moduleSpecifier as ts.StringLiteral).text,
+                        typeOnly ? imports.typesOnly : imports.strong
+                    );
                 }
             }
 
@@ -257,7 +292,7 @@ function buildDependenciesForProject(project: ProjectInfo): void {
 function processProjects(): void {
     const projectsDone = new Set<string>();
 
-    for (; ;) {
+    for (;;) {
         let allDone = true;
 
         for (const project of projectInfos.values()) {
@@ -282,11 +317,12 @@ function usage(): void {
     console.log("Usage: ts-helper -p PROJECT-DIR-OR-FILE -r SOURCE-FILE");
 }
 
-
 async function main(): Promise<void> {
     const args = arg({
         "--project": [String],
         "--root": [String],
+        "--package-regex": [String],
+        // "--all-root": Boolean,
         "--output": String,
         "--detect-cycles": Boolean,
         "--verbose": Boolean,
@@ -295,17 +331,28 @@ async function main(): Promise<void> {
         "-r": "--root",
         "-o": "--output",
         "-c": "--detect-cycles",
-        "-v": "--verbose"
+        "-v": "--verbose",
     });
 
-    const {["--project"]: projectPaths, ["--root"]: sourcePaths, ["--output"]: outputFileName} = args;
+    const {
+        ["--project"]: projectPaths,
+        ["--root"]: sourcePaths,
+        ["--output"]: outputFileName,
+        ["--package-regex"]: packageRegexStrings,
+    } = args;
 
     if (projectPaths === undefined || sourcePaths === undefined) {
         usage();
         return process.exit(1);
     }
 
-    assert(projectPaths.length > 0 && sourcePaths.length > 0);
+    for (const rx of packageRegexStrings ?? []) {
+        packageRegexes.push(new RegExp(rx));
+    }
+
+    // const allRoot = args["--all-root"] === true;
+
+    assert(projectPaths.length > 0 && /* allRoot || */ sourcePaths.length > 0);
 
     if (args["--verbose"]) {
         verbose = true;
@@ -324,12 +371,24 @@ async function main(): Promise<void> {
     }
 
     if (outputFileName !== undefined) {
-        fs.writeFileSync(outputFileName,
-            JSON.stringify(Object.fromEntries(Array.from(importedFiles.entries()).map(([n, i]) => [n, ({
-                strong: Array.from(i.strong),
-                typesOnly: Array.from(i.typesOnly),
-                lazy: Array.from(i.lazy)
-            })] as const))));
+        fs.writeFileSync(
+            outputFileName,
+            JSON.stringify(
+                Object.fromEntries(
+                    Array.from(importedFiles.entries()).map(
+                        ([n, i]) =>
+                            [
+                                n,
+                                {
+                                    strong: Array.from(i.strong),
+                                    typesOnly: Array.from(i.typesOnly),
+                                    lazy: Array.from(i.lazy),
+                                },
+                            ] as const
+                    )
+                )
+            )
+        );
     }
 
     if (args["--detect-cycles"]) {

@@ -1,6 +1,6 @@
 {
     "name": "@glideapps/ts-helper",
-    "version": "0.0.5",
+    "version": "0.1.0",
     "description": "Analyze TypeScript projects",
     "main": "build/index.js",
     "scripts": {
