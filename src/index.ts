@@ -241,7 +241,12 @@ function buildDependenciesForProject(project: ProjectInfo): void {
                 // They can be `import` or `import type`.
                 const node = untypedNode as ts.ImportDeclaration;
                 assert(node.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral);
-                const typeOnly = node.importClause?.isTypeOnly === true;
+                const hasDefaultImport = node.importClause && node.importClause.name !== undefined;
+                const hasStarImport = node.importClause && node.importClause.namedBindings !== undefined && node.importClause.namedBindings.kind === ts.SyntaxKind.NamespaceImport;
+                // Statements like the one below are elided by TypeScript, so we shall treat them as weak imports
+                // import { type Foo } from "./foo";
+                const hasOnlyInlineTypeImports = !hasDefaultImport && !hasStarImport && node.importClause?.namedBindings?.elements?.every(el => el.isTypeOnly);
+                const typeOnly = node.importClause?.isTypeOnly === true || hasOnlyInlineTypeImports;
                 addImport(
                     (node.moduleSpecifier as ts.StringLiteral).text,
                     typeOnly ? imports.typesOnly : imports.strong
