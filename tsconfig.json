@@ -1,15 +1,15 @@
 {
     "compilerOptions": {
         "target": "es6",
-        "module": "commonjs",
-        "lib": ["es6", "es2018.promise"],
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "lib": ["es6", "es2018.promise", "dom"],
         "allowJs": false,
         "esModuleInterop": true,
         "allowSyntheticDefaultImports": true,
         "declaration": true,
         "outDir": "build",
         "preserveSymlinks": true,
-        "resolveJsonModule": true,
         "strict": true,
         "sourceMap": true,
         "forceConsistentCasingInFileNames": true,
@@ -17,7 +17,8 @@
         "noUnusedParameters": true,
         "noFallthroughCasesInSwitch": true,
         "noImplicitReturns": true,
-        "noUncheckedIndexedAccess": true
+        "noUncheckedIndexedAccess": true,
+        "verbatimModuleSyntax": true
     },
     "include": ["src"],
     "exclude": []

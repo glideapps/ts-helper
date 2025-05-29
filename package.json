@@ -1,7 +1,8 @@
 {
     "name": "@glideapps/ts-helper",
-    "version": "5.0.0",
+    "version": "6.0.0-test1",
     "description": "Analyze TypeScript projects",
+    "type": "module",
     "main": "build/index.js",
     "scripts": {
         "start": "tsc -b && node build/index.js",
@@ -22,13 +23,12 @@
     "license": "MIT",
     "dependencies": {
         "@glideapps/graphs": "0.0.3",
-        "@glideapps/ts-necessities": "^2.1.1",
+        "@glideapps/ts-necessities": "2.4.0",
         "arg": "^5.0.1",
-        "glob": "^8.1.0",
-        "typescript": "^4.4.4 || ^5.0.2"
+        "glob": "11.0.2",
+        "typescript": "5.8.3"
     },
     "devDependencies": {
-        "@types/glob": "^8.0.0",
-        "@types/node": "^16.11.6"
+        "@types/node": "20.14.8"
     }
 }

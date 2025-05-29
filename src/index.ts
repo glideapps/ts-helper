@@ -4,7 +4,7 @@ import path from "path";
 import fs from "fs";
 import * as ts from "typescript";
 import arg from "arg";
-import * as glob from "glob";
+import { globSync } from "glob";
 import { assert, defined, definedMap, mapFilterUndefined } from "@glideapps/ts-necessities";
 import { getCycleNodesInGraph, getCyclesInGraph, makeGraphFromEdges } from "@glideapps/graphs";
 
@@ -218,7 +218,7 @@ function buildDependenciesForProject(project: ProjectInfo): void {
             console.log("Reading file", sourceFile.fileName);
         }
 
-        assert(!importedFiles.has(sourceFile.fileName));
+        if (importedFiles.has(sourceFile.fileName)) continue;
         if (!shouldInclude(sourceFile.fileName)) continue;
 
         const imports: Imports = {
@@ -377,7 +377,7 @@ async function main(): Promise<void> {
                 const base = path.resolve(p.projectDir, i, "**");
                 const pattern = path.resolve(base, "*.{ts,tsx}");
                 const ignore = [path.resolve(base, "*.test.*"), path.relative(base, "*.d.ts")];
-                const filenames = glob.sync(pattern, { ignore });
+                const filenames = globSync(pattern, { ignore });
                 addRootFiles(filenames);
             }
         }
