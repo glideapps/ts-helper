@@ -218,7 +218,7 @@ function buildDependenciesForProject(project: ProjectInfo): void {
             console.log("Reading file", sourceFile.fileName);
         }
 
-        if (importedFiles.has(sourceFile.fileName)) continue;
+        assert(!importedFiles.has(sourceFile.fileName));
         if (!shouldInclude(sourceFile.fileName)) continue;
 
         const imports: Imports = {
